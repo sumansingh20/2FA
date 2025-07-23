@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSS Test</title>
+    <link rel="stylesheet" href="{{ static_file('style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='admin.css', v=cache_id) }}">
+    <style>
+        .test-box {
+            background: red;
+            color: white;
+            padding: 20px;
+            margin: 20px;
+            border-radius: 10px;
+        }
+        .debug-info {
+            background: #f0f0f0;
+            padding: 10px;
+            margin: 10px;
+            border: 1px solid #ccc;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="test-box">
+            <h1>CSS Test</h1>
+            <p>If this box is styled (red background, white text), inline CSS is working.</p>
+            <p>If the body has a gradient background, external CSS is working.</p>
+        </div>
+        <div class="header">
+            <h1>External CSS Test</h1>
+            <p>This should have the header styling from style.css</p>
+        </div>
+        <div class="debug-info">
+            <h3>Debug Information:</h3>
+            <p>CSS URL: {{ static_file('style.css') }}</p>
+            <p>Cache ID: {{ cache_id }}</p>
+            <p>Static URL path: {{ url_for('static', filename='style.css') }}</p>
+        </div>
+    </div>
+</body>
+</html>

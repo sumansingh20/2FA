@@ -63,8 +63,26 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
+
+# Configure MIME types for static files
+import mimetypes
+mimetypes.add_type('text/css', '.css')
+mimetypes.add_type('application/javascript', '.js')
+mimetypes.add_type('image/svg+xml', '.svg')
+
+# Static file configuration for production
+@app.after_request
+def after_request(response):
+    """Add headers to serve static files correctly"""
+    if request.endpoint and request.endpoint.startswith('static'):
+        response.headers['Cache-Control'] = 'public, max-age=31536000'
+        if request.endpoint == 'static' and request.path.endswith('.css'):
+            response.headers['Content-Type'] = 'text/css'
+        elif request.endpoint == 'static' and request.path.endswith('.js'):
+            response.headers['Content-Type'] = 'application/javascript'
+    return response
 
 # Database Configuration
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -87,6 +105,20 @@ app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', 'Flask 2FA 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 mail = Mail(app)
+
+# Add context processor for cache busting
+@app.context_processor
+def inject_cache_buster():
+    """Inject cache buster for static files"""
+    return {
+        'cache_id': int(time.time())
+    }
+
+# Add template function for versioned static files
+@app.template_global()
+def static_file(filename):
+    """Generate static file URL with cache busting"""
+    return url_for('static', filename=filename, v=int(time.time()))
 
 # Configuration
 USE_EMAIL = os.getenv('USE_EMAIL', 'False').lower() == 'true'
@@ -944,6 +976,35 @@ def send_otp_email(email, otp):
 def test():
     """Test route to verify Flask is working"""
     return '<h1>Flask is working!</h1><p>If you see this, the server is running correctly.</p>'
+
+@app.route('/css-test')
+def css_test():
+    """Test route to verify CSS is loading"""
+    return render_template('css_test.html')
+
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    """Serve static files with proper headers"""
+    from flask import send_from_directory, current_app
+    response = send_from_directory(current_app.static_folder, filename)
+    
+    # Set proper content type for CSS and JS files
+    if filename.endswith('.css'):
+        response.headers['Content-Type'] = 'text/css'
+    elif filename.endswith('.js'):
+        response.headers['Content-Type'] = 'application/javascript'
+    elif filename.endswith('.png'):
+        response.headers['Content-Type'] = 'image/png'
+    elif filename.endswith('.jpg') or filename.endswith('.jpeg'):
+        response.headers['Content-Type'] = 'image/jpeg'
+    elif filename.endswith('.gif'):
+        response.headers['Content-Type'] = 'image/gif'
+    elif filename.endswith('.svg'):
+        response.headers['Content-Type'] = 'image/svg+xml'
+    
+    # Set cache headers
+    response.headers['Cache-Control'] = 'public, max-age=31536000'
+    return response
 
 @app.route('/')
 def index():
