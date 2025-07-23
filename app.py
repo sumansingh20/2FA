@@ -10,27 +10,55 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_mail import Mail, Message
-from twilio.rest import Client
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
-from PIL import Image, ImageDraw, ImageFont
-import io
-import base64
 import random
 import string
-from gtts import gTTS
-import tempfile
 from functools import wraps
 from collections import defaultdict, Counter
 from sqlalchemy import func, desc, and_, or_
 import threading
 import atexit
-from utils.captcha_utils import generate_captcha_challenge, verify_captcha, create_recaptcha_manager
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from twilio.base.exceptions import TwilioException
+
+# Conditional imports for optional features
+try:
+    from twilio.rest import Client
+    from twilio.base.exceptions import TwilioException
+    TWILIO_AVAILABLE = True
+except ImportError:
+    TWILIO_AVAILABLE = False
+    
+try:
+    from utils.captcha_utils import generate_captcha_challenge, verify_captcha, create_recaptcha_manager
+    CAPTCHA_AVAILABLE = True
+except ImportError:
+    CAPTCHA_AVAILABLE = False
+    
+    # Fallback functions
+    def generate_captcha_challenge(captcha_type='text'):
+        """Fallback CAPTCHA challenge"""
+        import random
+        import string
+        length = 5
+        characters = string.ascii_uppercase + string.digits
+        challenge = ''.join(random.choice(characters) for _ in range(length))
+        return {
+            'challenge': challenge,
+            'type': 'text',
+            'image_data': None
+        }
+    
+    def verify_captcha(user_input, correct_answer):
+        """Fallback CAPTCHA verification"""
+        return str(user_input).upper() == str(correct_answer).upper()
+    
+    def create_recaptcha_manager(site_key, secret_key):
+        """Fallback reCAPTCHA manager"""
+        return None
 
 # Load environment variables
 load_dotenv()
@@ -95,15 +123,16 @@ ENABLE_RECAPTCHA_V3 = os.getenv('ENABLE_RECAPTCHA_V3', 'False').lower() == 'true
 recaptcha_v2_manager = None
 recaptcha_v3_manager = None
 
-if ENABLE_RECAPTCHA_V2 and RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET_KEY:
-    recaptcha_v2_manager = create_recaptcha_manager(RECAPTCHA_SITE_KEY, RECAPTCHA_SECRET_KEY)
+if CAPTCHA_AVAILABLE:
+    if ENABLE_RECAPTCHA_V2 and RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET_KEY:
+        recaptcha_v2_manager = create_recaptcha_manager(RECAPTCHA_SITE_KEY, RECAPTCHA_SECRET_KEY)
 
-if ENABLE_RECAPTCHA_V3 and RECAPTCHA_V3_SITE_KEY and RECAPTCHA_V3_SECRET_KEY:
-    recaptcha_v3_manager = create_recaptcha_manager(RECAPTCHA_V3_SITE_KEY, RECAPTCHA_V3_SECRET_KEY)
+    if ENABLE_RECAPTCHA_V3 and RECAPTCHA_V3_SITE_KEY and RECAPTCHA_V3_SECRET_KEY:
+        recaptcha_v3_manager = create_recaptcha_manager(RECAPTCHA_V3_SITE_KEY, RECAPTCHA_V3_SECRET_KEY)
 
 # Initialize Twilio client
 twilio_client = None
-if os.getenv('USE_SMS', 'False').lower() == 'true':
+if TWILIO_AVAILABLE and os.getenv('USE_SMS', 'False').lower() == 'true':
     try:
         twilio_client = Client(os.getenv('TWILIO_ACCOUNT_SID'), os.getenv('TWILIO_AUTH_TOKEN'))
     except Exception as e:
@@ -850,12 +879,11 @@ If you didn't request this code, please ignore this message.
         print(f"SMS sent successfully. SID: {message.sid}")
         return True
         
-    except TwilioException as e:
-        print(f"Twilio SMS sending failed: {e}")
-        print(f"Fallback - OTP for {phone}: {otp}")
-        return False
     except Exception as e:
-        print(f"SMS sending error: {e}")
+        if TWILIO_AVAILABLE and 'TwilioException' in str(type(e)):
+            print(f"Twilio SMS sending failed: {e}")
+        else:
+            print(f"SMS sending error: {e}")
         print(f"Fallback - OTP for {phone}: {otp}")
         return False
 
@@ -1444,37 +1472,50 @@ def generate_text_captcha():
     characters = string.ascii_uppercase + string.digits
     captcha_text = ''.join(random.choice(characters) for _ in range(length))
     
-    # Create image
-    img = Image.new('RGB', (200, 80), color='white')
-    draw = ImageDraw.Draw(img)
-    
+    # For deployment without PIL, return a simple text-based challenge
     try:
-        font = ImageFont.truetype("arial.ttf", 36)
-    except:
-        font = ImageFont.load_default()
-    
-    # Add some noise
-    for _ in range(100):
-        x = random.randint(0, 200)
-        y = random.randint(0, 80)
-        draw.point((x, y), fill='lightgray')
-    
-    # Draw text with slight variations
-    for i, char in enumerate(captcha_text):
-        x = 20 + i * 30 + random.randint(-5, 5)
-        y = 20 + random.randint(-10, 10)
-        draw.text((x, y), char, fill='black', font=font)
-    
-    # Convert to base64
-    buffer = io.BytesIO()
-    img.save(buffer, format='PNG')
-    img_str = base64.b64encode(buffer.getvalue()).decode()
-    
-    return captcha_text, f"data:image/png;base64,{img_str}"
+        from PIL import Image, ImageDraw, ImageFont
+        import io
+        import base64
+        
+        # Create image
+        img = Image.new('RGB', (200, 80), color='white')
+        draw = ImageDraw.Draw(img)
+        
+        try:
+            font = ImageFont.truetype("arial.ttf", 36)
+        except:
+            font = ImageFont.load_default()
+        
+        # Add some noise
+        for _ in range(100):
+            x = random.randint(0, 200)
+            y = random.randint(0, 80)
+            draw.point((x, y), fill='lightgray')
+        
+        # Draw text with slight variations
+        for i, char in enumerate(captcha_text):
+            x = 20 + i * 30 + random.randint(-5, 5)
+            y = 20 + random.randint(-10, 10)
+            draw.text((x, y), char, fill='black', font=font)
+        
+        # Convert to base64
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        img_str = base64.b64encode(buffer.getvalue()).decode()
+        
+        return captcha_text, f"data:image/png;base64,{img_str}"
+    except ImportError:
+        # Fallback: return text-only CAPTCHA
+        return captcha_text, None
 
 def generate_audio_captcha(text):
     """Generate audio CAPTCHA using gTTS"""
     try:
+        from gtts import gTTS
+        import tempfile
+        import base64
+        
         # Add spaces between characters for clarity
         spaced_text = ' '.join(text)
         tts = gTTS(text=spaced_text, lang='en', slow=True)
@@ -1491,7 +1532,7 @@ def generate_audio_captcha(text):
             os.unlink(tmp_file.name)
             
             return f"data:audio/mp3;base64,{audio_data}"
-    except Exception as e:
+    except ImportError:
         print(f"Audio CAPTCHA generation failed: {e}")
         return None
 
@@ -1645,4 +1686,6 @@ if __name__ == '__main__':
             db.session.commit()
             print("Default admin user created: admin/Admin@123")
     
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    debug_mode = os.environ.get('FLASK_ENV') == 'development'
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)
