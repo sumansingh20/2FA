@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # 🔐 Flask 2FA Authentication Tool with Database
 
 A complete Two-Factor Authentication (2FA) web application built with Flask, featuring a beautiful single-page interface, comprehensive admin panel, and persistent database storage using SQLAlchemy.
@@ -337,6 +336,3 @@ This is a learning tool. Suggestions and improvements are welcome!
 ---
 
 **Built with ❤️ using Flask, SQLAlchemy, Bootstrap 5, and modern web technologies.**
-=======
-# 2FA
->>>>>>> c876a3b80b1179df0b455c770109b4b37f8b6e9e
