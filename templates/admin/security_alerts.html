@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Security Alerts - 2FA Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='admin.css') }}" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('admin_dashboard') }}">
+                <i class="fas fa-shield-alt me-2"></i>2FA Admin Panel
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
+                            <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_users') }}">
+                            <i class="fas fa-users me-1"></i>Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_logs') }}">
+                            <i class="fas fa-list-alt me-1"></i>Auth Logs
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_activity_logs') }}">
+                            <i class="fas fa-clipboard-list me-1"></i>Activity Logs
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('admin_security_alerts') }}">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Security Alerts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_notifications') }}">
+                            <i class="fas fa-bell me-1"></i>Notifications
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-1"></i>{{ session.user_email }}
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('index') }}">
+                                <i class="fas fa-home me-2"></i>Main App
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">
+                                <i class="fas fa-sign-out-alt me-2"></i>Logout
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' if category == 'success' else 'warning' if category == 'warning' else 'info' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Page Header -->
+        <div class="d-sm-flex align-items-center justify-content-between mb-4">
+            <h1 class="h3 mb-0 text-gray-800">
+                <i class="fas fa-exclamation-triangle me-2"></i>Security Alerts
+            </h1>
+        </div>
+
+        <!-- Filters -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-filter me-2"></i>Filters
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-4">
+                        <label for="status" class="form-label">Status</label>
+                        <select class="form-select" id="status" name="status">
+                            <option value="">All Statuses</option>
+                            <option value="active" {{ 'selected' if status_filter == 'active' }}>Active</option>
+                            <option value="resolved" {{ 'selected' if status_filter == 'resolved' }}>Resolved</option>
+                            <option value="ignored" {{ 'selected' if status_filter == 'ignored' }}>Ignored</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="severity" class="form-label">Severity</label>
+                        <select class="form-select" id="severity" name="severity">
+                            <option value="">All Severities</option>
+                            <option value="low" {{ 'selected' if severity_filter == 'low' }}>Low</option>
+                            <option value="medium" {{ 'selected' if severity_filter == 'medium' }}>Medium</option>
+                            <option value="high" {{ 'selected' if severity_filter == 'high' }}>High</option>
+                            <option value="critical" {{ 'selected' if severity_filter == 'critical' }}>Critical</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-1"></i>Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Security Alerts Table -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-table me-2"></i>Security Alerts ({{ pagination.total }} total)
+                </h6>
+                <button class="btn btn-sm btn-outline-primary" onclick="location.reload()">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Alert Type</th>
+                                <th>Description</th>
+                                <th>Affected User</th>
+                                <th>IP Address</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alert in alerts %}
+                            <tr class="{{ 'table-danger' if alert.severity == 'critical' else 'table-warning' if alert.severity == 'high' else '' }}">
+                                <td>
+                                    <span class="badge bg-secondary">#{{ alert.id }}</span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-{{ 
+                                            'user-times' if 'failed_login' in alert.alert_type
+                                            else 'globe' if 'new_ip' in alert.alert_type
+                                            else 'clock' if 'rapid' in alert.alert_type
+                                            else 'exclamation-triangle'
+                                        }} me-2 text-{{ 
+                                            'danger' if alert.severity == 'critical'
+                                            else 'warning' if alert.severity == 'high'
+                                            else 'info'
+                                        }}"></i>
+                                        <span class="small">{{ alert.alert_type.replace('_', ' ').title() }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="small" title="{{ alert.description }}">
+                                        {{ alert.description[:80] }}{{ '...' if alert.description|length > 80 else '' }}
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if alert.affected_user %}
+                                        <span class="badge bg-info">{{ alert.affected_user }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if alert.ip_address %}
+                                        <span class="font-monospace small">{{ alert.ip_address }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 
+                                        'danger' if alert.severity == 'critical'
+                                        else 'warning' if alert.severity == 'high'
+                                        else 'info' if alert.severity == 'medium'
+                                        else 'secondary'
+                                    }}">
+                                        {{ alert.severity.upper() }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 
+                                        'success' if alert.status == 'resolved'
+                                        else 'secondary' if alert.status == 'ignored'
+                                        else 'danger'
+                                    }}">
+                                        {{ alert.status.title() }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="small">
+                                        <div>{{ alert.created_at.split('T')[0] }}</div>
+                                        <div class="text-muted">{{ alert.created_at.split('T')[1].split('.')[0] }}</div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if alert.status == 'active' %}
+                                        <form method="POST" action="{{ url_for('resolve_security_alert', alert_id=alert.id) }}" style="display: inline;">
+                                            <button type="submit" class="btn btn-sm btn-success" title="Resolve Alert">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <span class="text-muted small">
+                                            {% if alert.resolved_by %}
+                                                Resolved by {{ alert.resolved_by }}
+                                            {% else %}
+                                                {{ alert.status.title() }}
+                                            {% endif %}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if pagination.pages > 1 %}
+                <nav aria-label="Security alerts pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if pagination.has_prev %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin_security_alerts', page=pagination.page-1, status=status_filter, severity=severity_filter) }}">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+
+                        {% for page_num in range(1, pagination.pages + 1) %}
+                            {% if page_num == pagination.page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                            {% elif page_num <= 3 or page_num > pagination.pages - 3 or (page_num >= pagination.page - 1 and page_num <= pagination.page + 1) %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin_security_alerts', page=page_num, status=status_filter, severity=severity_filter) }}">
+                                        {{ page_num }}
+                                    </a>
+                                </li>
+                            {% elif page_num == 4 or page_num == pagination.pages - 3 %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if pagination.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin_security_alerts', page=pagination.page+1, status=status_filter, severity=severity_filter) }}">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Auto-dismiss alerts
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 5000);
+    </script>
+</body>
+</html>

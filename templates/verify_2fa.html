@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Factor Authentication - Flask 2FA Demo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-shield-alt"></i> Flask 2FA</h1>
+            <p>Two-Factor Authentication Verification</p>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">
+                            <i class="fas fa-{% if category == 'error' %}exclamation-triangle{% elif category == 'success' %}check-circle{% elif category == 'warning' %}exclamation-circle{% else %}info-circle{% endif %}"></i>
+                            {{ message }}
+                            <button class="close-flash" onclick="this.parentElement.style.display='none'">&times;</button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="auth-container">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <div class="verification-icon">
+                        <i class="fas fa-mobile-alt"></i>
+                    </div>
+                    <h2>Enter Verification Code</h2>
+                    <p>We've sent a 6-digit verification code to your device</p>
+                    <div class="verification-info">
+                        <i class="fas fa-clock"></i>
+                        <span>Code expires in 5 minutes</span>
+                    </div>
+                </div>
+
+                <form method="POST" action="/verify_code" class="auth-form" id="verifyForm">
+                    <div class="form-group">
+                        <label for="code"><i class="fas fa-key"></i> Verification Code</label>
+                        <input type="text" 
+                               id="code" 
+                               name="code" 
+                               required 
+                               maxlength="6" 
+                               pattern="[0-9]{6}"
+                               placeholder="000000"
+                               autocomplete="one-time-code"
+                               class="otp-input"
+                               autofocus>
+                        <div class="input-help">
+                            <i class="fas fa-info-circle"></i>
+                            Enter the 6-digit code from your authenticator app or SMS
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="verifyButton">
+                        <i class="fas fa-check"></i> Verify Code
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <div class="verification-help">
+                        <h4><i class="fas fa-question-circle"></i> Need Help?</h4>
+                        <div class="help-options">
+                            <button type="button" class="help-option" onclick="resendCode()">
+                                <i class="fas fa-redo"></i>
+                                <div>
+                                    <strong>Resend Code</strong>
+                                    <span>Get a new verification code</span>
+                                </div>
+                            </button>
+                            <button type="button" class="help-option" onclick="switchMethod()">
+                                <i class="fas fa-exchange-alt"></i>
+                                <div>
+                                    <strong>Switch Method</strong>
+                                    <span>Use different delivery method</span>
+                                </div>
+                            </button>
+                        </div>
+                        <div id="resendTimer" class="resend-timer"></div>
+                    </div>
+                    
+                    <div class="back-to-login">
+                        <a href="/" class="btn btn-outline">
+                            <i class="fas fa-arrow-left"></i> Back to Login
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let resendTimer = 60;
+        let resendInterval;
+
+        // Auto-format verification code input
+        document.getElementById('code').addEventListener('input', function(e) {
+            // Only allow numbers
+            this.value = this.value.replace(/[^0-9]/g, '');
+            
+            // Auto-submit when 6 digits are entered
+            if (this.value.length === 6) {
+                // Add visual feedback
+                this.style.borderColor = '#28a745';
+                this.style.backgroundColor = '#f8fff8';
+                
+                // Submit after short delay
+                setTimeout(() => {
+                    document.getElementById('verifyForm').submit();
+                }, 500);
+            }
+        });
+
+        // Handle paste events
+        document.getElementById('code').addEventListener('paste', function(e) {
+            e.preventDefault();
+            const paste = (e.clipboardData || window.clipboardData).getData('text');
+            const numbers = paste.replace(/[^0-9]/g, '').substring(0, 6);
+            this.value = numbers;
+            
+            if (numbers.length === 6) {
+                setTimeout(() => {
+                    document.getElementById('verifyForm').submit();
+                }, 500);
+            }
+        });
+
+        // Resend code functionality
+        function resendCode() {
+            const button = event.target.closest('.help-option');
+            const timer = document.getElementById('resendTimer');
+            
+            // Disable button and show loading
+            button.style.opacity = '0.7';
+            button.style.pointerEvents = 'none';
+            button.querySelector('strong').textContent = 'Sending...';
+            
+            // Simulate API call (replace with actual endpoint)
+            fetch('/resend-2fa', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showFlashMessage('success', 'Verification code resent successfully!');
+                    startResendTimer();
+                } else {
+                    showFlashMessage('error', data.message || 'Failed to resend code');
+                    resetResendButton();
+                }
+            })
+            .catch(error => {
+                showFlashMessage('error', 'Network error. Please try again.');
+                resetResendButton();
+            });
+        }
+
+        function resetResendButton() {
+            const button = document.querySelector('.help-option');
+            button.style.opacity = '1';
+            button.style.pointerEvents = 'auto';
+            button.querySelector('strong').textContent = 'Resend Code';
+        }
+
+        function startResendTimer() {
+            const timer = document.getElementById('resendTimer');
+            const button = document.querySelector('.help-option');
+            
+            resendTimer = 60;
+            timer.style.display = 'block';
+            timer.innerHTML = `<i class="fas fa-clock"></i> You can request a new code in ${resendTimer} seconds`;
+            
+            resendInterval = setInterval(() => {
+                resendTimer--;
+                timer.innerHTML = `<i class="fas fa-clock"></i> You can request a new code in ${resendTimer} seconds`;
+                
+                if (resendTimer <= 0) {
+                    clearInterval(resendInterval);
+                    timer.style.display = 'none';
+                    resetResendButton();
+                }
+            }, 1000);
+        }
+
+        function switchMethod() {
+            if (confirm('Do you want to go back to login and choose a different delivery method?')) {
+                window.location.href = '/';
+            }
+        }
+
+        // Flash message functionality
+        function showFlashMessage(type, message) {
+            const flashContainer = document.querySelector('.flash-messages') || createFlashContainer();
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash-message flash-${type}`;
+            
+            const icon = type === 'error' ? 'exclamation-triangle' : 
+                        type === 'success' ? 'check-circle' : 
+                        type === 'warning' ? 'exclamation-circle' : 'info-circle';
+            
+            flashMessage.innerHTML = `
+                <i class="fas fa-${icon}"></i>
+                ${message}
+                <button class="close-flash" onclick="this.parentElement.remove()">&times;</button>
+            `;
+            
+            flashContainer.appendChild(flashMessage);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (flashMessage.parentElement) {
+                    flashMessage.remove();
+                }
+            }, 5000);
+        }
+
+        function createFlashContainer() {
+            const container = document.createElement('div');
+            container.className = 'flash-messages';
+            document.querySelector('.container').insertBefore(container, document.querySelector('.container').firstChild.nextSibling);
+            return container;
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Escape key to go back
+            if (e.key === 'Escape') {
+                if (confirm('Are you sure you want to go back to login?')) {
+                    window.location.href = '/';
+                }
+            }
+            
+            // Enter key to submit (if code is complete)
+            if (e.key === 'Enter') {
+                const code = document.getElementById('code').value;
+                if (code.length === 6) {
+                    document.getElementById('verifyForm').submit();
+                }
+            }
+        });
+
+        // Auto-focus on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('code').focus();
+        });
+
+        // Prevent form submission with incomplete code
+        document.getElementById('verifyForm').addEventListener('submit', function(e) {
+            const code = document.getElementById('code').value;
+            if (code.length !== 6) {
+                e.preventDefault();
+                showFlashMessage('error', 'Please enter a complete 6-digit verification code');
+                document.getElementById('code').focus();
+            } else {
+                // Show loading state
+                const button = document.getElementById('verifyButton');
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+                button.disabled = true;
+            }
+        });
+    </script>
+
+    <style>
+        .otp-input {
+            text-align: center;
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: 8px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .otp-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .verification-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            color: white;
+            font-size: 2rem;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .verification-info {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .input-help {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: #e3f2fd;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: #1565c0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .verification-help {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .verification-help h4 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .help-options {
+            display: grid;
+            gap: 10px;
+        }
+
+        .help-option {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: left;
+        }
+
+        .help-option:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+            transform: translateY(-2px);
+        }
+
+        .help-option i {
+            font-size: 1.2rem;
+            color: #667eea;
+            width: 20px;
+            text-align: center;
+        }
+
+        .help-option div {
+            flex: 1;
+        }
+
+        .help-option strong {
+            display: block;
+            color: #333;
+            margin-bottom: 2px;
+        }
+
+        .help-option span {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .resend-timer {
+            margin-top: 15px;
+            padding: 10px;
+            background: #fff3cd;
+            border-radius: 6px;
+            text-align: center;
+            color: #856404;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .back-to-login {
+            text-align: center;
+            padding-top: 15px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 480px) {
+            .otp-input {
+                font-size: 1.5rem !important;
+                letter-spacing: 0.5rem !important;
+            }
+            
+            .help-options {
+                grid-template-columns: 1fr;
+            }
+            
+            .help-option {
+                flex-direction: column;
+                text-align: center;
+                gap: 10px;
+            }
+        }
+    </style>
+</body>
+</html>

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Admin Dashboard - 2FA Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='admin.css') }}" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('admin_dashboard') }}">
+                <i class="fas fa-shield-alt me-2"></i>2FA Admin Panel
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('admin_dashboard') }}">
+                            <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_users') }}">
+                            <i class="fas fa-users me-1"></i>Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_logs') }}">
+                            <i class="fas fa-list-alt me-1"></i>Auth Logs
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-1"></i>{{ session.user_email }}
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('index') }}">
+                                <i class="fas fa-home me-2"></i>Main App
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">
+                                <i class="fas fa-sign-out-alt me-2"></i>Logout
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' if category == 'success' else 'warning' if category == 'warning' else 'info' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-primary shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                    Total Users
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" id="totalUsers">
+                                    {{ stats.total_users }}
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-users fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-success shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                    Active Users
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" id="activeUsers">
+                                    {{ stats.active_users }}
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-user-check fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-info shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                    Logins Today
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" id="loginsToday">
+                                    {{ stats.total_logins_today }}
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-sign-in-alt fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-warning shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                    Failed Attempts
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" id="failedAttempts">
+                                    {{ stats.failed_attempts_today }}
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="row mb-4">
+            <div class="col-xl-8 col-lg-7">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                        <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-chart-area me-2"></i>Authentication Events (Last 24 Hours)
+                        </h6>
+                        <div class="dropdown no-arrow">
+                            <button class="btn btn-sm btn-outline-primary" id="refreshCharts">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="eventsChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-4 col-lg-5">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-chart-pie me-2"></i>Delivery Methods
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="deliveryChart" width="400" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="row">
+            <div class="col-lg-6 mb-4">
+                <div class="card shadow">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-clock me-2"></i>Recent Activity
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>User</th>
+                                        <th>Event</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentActivity">
+                                    {% for log in recent_logs %}
+                                    <tr>
+                                        <td>
+                                            <small>{{ log.timestamp.split('T')[1].split('.')[0] }}</small>
+                                        </td>
+                                        <td>
+                                            <small>{{ log.email.split('@')[0] }}...</small>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-{{ 'success' if log.event_type == 'login_success' else 'danger' if 'failed' in log.event_type else 'info' }}">
+                                                {{ log.event_type.replace('_', ' ').title() }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <small>{{ log.details[:30] }}{{ '...' if log.details|length > 30 else '' }}</small>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="text-center">
+                            <a href="{{ url_for('admin_logs') }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-list me-1"></i>View All Logs
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6 mb-4">
+                <div class="card shadow">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-users me-2"></i>User Overview
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="border-end">
+                                    <div class="h4 font-weight-bold text-success">{{ stats.active_users }}</div>
+                                    <div class="small text-muted">Active Users</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="h4 font-weight-bold text-primary">{{ stats.admin_users }}</div>
+                                <div class="small text-muted">Admin Users</div>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="text-center">
+                            <a href="{{ url_for('admin_users') }}" class="btn btn-primary me-2">
+                                <i class="fas fa-users me-1"></i>Manage Users
+                            </a>
+                            <a href="{{ url_for('admin_create_user') }}" class="btn btn-success">
+                                <i class="fas fa-user-plus me-1"></i>Add User
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initialize charts
+        const eventsCtx = document.getElementById('eventsChart').getContext('2d');
+        const deliveryCtx = document.getElementById('deliveryChart').getContext('2d');
+
+        // Events Chart
+        const eventsChart = new Chart(eventsCtx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys({{ event_counts | tojson }}),
+                datasets: [{
+                    data: Object.values({{ event_counts | tojson }}),
+                    backgroundColor: [
+                        '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b'
+                    ],
+                    hoverBackgroundColor: [
+                        '#2e59d9', '#17a673', '#2c9faf', '#f4b619', '#e02d1b'
+                    ]
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+
+        // Delivery Methods Chart
+        const deliveryChart = new Chart(deliveryCtx, {
+            type: 'pie',
+            data: {
+                labels: Object.keys({{ delivery_counts | tojson }}),
+                datasets: [{
+                    data: Object.values({{ delivery_counts | tojson }}),
+                    backgroundColor: ['#4e73df', '#1cc88a'],
+                    hoverBackgroundColor: ['#2e59d9', '#17a673']
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+
+        // Real-time updates
+        function updateDashboard() {
+            fetch('/admin/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    // Update stats
+                    document.getElementById('totalUsers').textContent = data.stats.total_users;
+                    document.getElementById('activeUsers').textContent = data.stats.active_users;
+                    document.getElementById('loginsToday').textContent = data.stats.total_logins_today;
+                    document.getElementById('failedAttempts').textContent = data.stats.failed_attempts_today;
+
+                    // Update recent activity
+                    const tbody = document.getElementById('recentActivity');
+                    tbody.innerHTML = '';
+                    data.recent_events.forEach(event => {
+                        const row = tbody.insertRow();
+                        const time = new Date(event.timestamp).toLocaleTimeString();
+                        const email = event.email.split('@')[0] + '...';
+                        const eventType = event.event_type.replace('_', ' ');
+                        const badgeClass = event.event_type === 'login_success' ? 'success' : 
+                                         event.event_type.includes('failed') ? 'danger' : 'info';
+                        
+                        row.innerHTML = `
+                            <td><small>${time}</small></td>
+                            <td><small>${email}</small></td>
+                            <td><span class="badge bg-${badgeClass}">${eventType}</span></td>
+                            <td><small>${event.details.substring(0, 30)}${event.details.length > 30 ? '...' : ''}</small></td>
+                        `;
+                    });
+                })
+                .catch(error => console.error('Error updating dashboard:', error));
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(updateDashboard, 30000);
+
+        // Manual refresh
+        document.getElementById('refreshCharts').addEventListener('click', updateDashboard);
+
+        // Auto-dismiss alerts
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 5000);
+    </script>
+</body>
+</html>

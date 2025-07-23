@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Activity Logs - 2FA Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='admin.css') }}" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('admin_dashboard') }}">
+                <i class="fas fa-shield-alt me-2"></i>2FA Admin Panel
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
+                            <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_users') }}">
+                            <i class="fas fa-users me-1"></i>Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_logs') }}">
+                            <i class="fas fa-list-alt me-1"></i>Auth Logs
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('admin_activity_logs') }}">
+                            <i class="fas fa-clipboard-list me-1"></i>Activity Logs
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_security_alerts') }}">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Security Alerts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_notifications') }}">
+                            <i class="fas fa-bell me-1"></i>Notifications
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-1"></i>{{ session.user_email }}
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('index') }}">
+                                <i class="fas fa-home me-2"></i>Main App
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">
+                                <i class="fas fa-sign-out-alt me-2"></i>Logout
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Page Header -->
+        <div class="d-sm-flex align-items-center justify-content-between mb-4">
+            <h1 class="h3 mb-0 text-gray-800">
+                <i class="fas fa-clipboard-list me-2"></i>Activity Logs
+            </h1>
+        </div>
+
+        <!-- Filters -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-filter me-2"></i>Filters
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-3">
+                        <label for="activity_type" class="form-label">Activity Type</label>
+                        <select class="form-select" id="activity_type" name="activity_type">
+                            <option value="">All Activities</option>
+                            <option value="login_attempt" {{ 'selected' if activity_filter == 'login_attempt' }}>Login Attempt</option>
+                            <option value="login_success" {{ 'selected' if activity_filter == 'login_success' }}>Login Success</option>
+                            <option value="login_failed" {{ 'selected' if activity_filter == 'login_failed' }}>Login Failed</option>
+                            <option value="logout" {{ 'selected' if activity_filter == 'logout' }}>Logout</option>
+                            <option value="otp_verified" {{ 'selected' if activity_filter == 'otp_verified' }}>OTP Verified</option>
+                            <option value="admin_user_created" {{ 'selected' if activity_filter == 'admin_user_created' }}>User Created</option>
+                            <option value="admin_user_updated" {{ 'selected' if activity_filter == 'admin_user_updated' }}>User Updated</option>
+                            <option value="admin_user_deleted" {{ 'selected' if activity_filter == 'admin_user_deleted' }}>User Deleted</option>
+                            <option value="page_access" {{ 'selected' if activity_filter == 'page_access' }}>Page Access</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="email" class="form-label">User Email</label>
+                        <input type="text" class="form-control" id="email" name="email" 
+                               value="{{ email_filter }}" placeholder="Filter by email...">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="severity" class="form-label">Severity</label>
+                        <select class="form-select" id="severity" name="severity">
+                            <option value="">All Severities</option>
+                            <option value="info" {{ 'selected' if severity_filter == 'info' }}>Info</option>
+                            <option value="warning" {{ 'selected' if severity_filter == 'warning' }}>Warning</option>
+                            <option value="error" {{ 'selected' if severity_filter == 'error' }}>Error</option>
+                            <option value="critical" {{ 'selected' if severity_filter == 'critical' }}>Critical</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-1"></i>Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Activity Logs Table -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-table me-2"></i>Activity Events ({{ pagination.total }} total)
+                </h6>
+                <button class="btn btn-sm btn-outline-primary" onclick="location.reload()">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Timestamp</th>
+                                <th>User</th>
+                                <th>Activity Type</th>
+                                <th>Description</th>
+                                <th>Target User</th>
+                                <th>Severity</th>
+                                <th>IP Address</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-secondary">#{{ log.id }}</span>
+                                </td>
+                                <td>
+                                    <div class="small">
+                                        <div>{{ log.timestamp.split('T')[0] }}</div>
+                                        <div class="text-muted">{{ log.timestamp.split('T')[1].split('.')[0] }}</div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-user-circle me-2 text-gray-400"></i>
+                                        <div>
+                                            <div class="font-weight-bold small">{{ log.email }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 
+                                        'success' if log.activity_type in ['login_success', 'otp_verified'] 
+                                        else 'danger' if 'failed' in log.activity_type or 'deleted' in log.activity_type
+                                        else 'warning' if log.activity_type.startswith('admin_')
+                                        else 'info'
+                                    }}">
+                                        {{ log.activity_type.replace('_', ' ').title() }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="small" title="{{ log.description }}">
+                                        {{ log.description[:60] }}{{ '...' if log.description|length > 60 else '' }}
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if log.target_user %}
+                                        <span class="badge bg-info">{{ log.target_user }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 
+                                        'danger' if log.severity == 'critical'
+                                        else 'warning' if log.severity == 'error'
+                                        else 'info' if log.severity == 'warning'
+                                        else 'secondary'
+                                    }}">
+                                        {{ log.severity.upper() }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="font-monospace small">{{ log.ip_address }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if pagination.pages > 1 %}
+                <nav aria-label="Activity logs pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if pagination.has_prev %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin_activity_logs', page=pagination.page-1, activity_type=activity_filter, email=email_filter, severity=severity_filter) }}">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+
+                        {% for page_num in range(1, pagination.pages + 1) %}
+                            {% if page_num == pagination.page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                            {% elif page_num <= 3 or page_num > pagination.pages - 3 or (page_num >= pagination.page - 1 and page_num <= pagination.page + 1) %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin_activity_logs', page=page_num, activity_type=activity_filter, email=email_filter, severity=severity_filter) }}">
+                                        {{ page_num }}
+                                    </a>
+                                </li>
+                            {% elif page_num == 4 or page_num == pagination.pages - 3 %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if pagination.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin_activity_logs', page=pagination.page+1, activity_type=activity_filter, email=email_filter, severity=severity_filter) }}">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flask 2FA - Secure Authentication</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    {% if recaptcha_config and recaptcha_config.v2_enabled %}
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    {% endif %}
+    {% if recaptcha_config and recaptcha_config.v3_enabled %}
+    <script src="https://www.google.com/recaptcha/api.js?render={{ recaptcha_config.v3_site_key }}"></script>
+    {% endif %}
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-shield-alt"></i> Flask 2FA</h1>
+            <p>Secure Two-Factor Authentication System</p>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">
+                            <i class="fas fa-{% if category == 'error' %}exclamation-triangle{% elif category == 'success' %}check-circle{% elif category == 'warning' %}exclamation-circle{% else %}info-circle{% endif %}"></i>
+                            {{ message }}
+                            <button class="close-flash" onclick="this.parentElement.style.display='none'">&times;</button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% if state == 'login' %}
+        <!-- Login Form -->
+        <div class="auth-container">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <h2><i class="fas fa-sign-in-alt"></i> Login</h2>
+                    <p>Enter your credentials to access your account</p>
+                </div>
+
+                <form method="POST" action="{{ url_for('login') }}" class="auth-form" id="loginForm">
+                    <div class="form-group">
+                        <label for="email"><i class="fas fa-envelope"></i> Email Address</label>
+                        <input type="email" id="email" name="email" required 
+                               placeholder="Enter your email address"
+                               autocomplete="email">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password"><i class="fas fa-lock"></i> Password</label>
+                        <div class="password-input">
+                            <input type="password" id="password" name="password" required 
+                                   placeholder="Enter your password"
+                                   autocomplete="current-password">
+                            <button type="button" class="password-toggle" onclick="togglePassword()">
+                                <i class="fas fa-eye" id="passwordToggleIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fas fa-paper-plane"></i> Delivery Method</label>
+                        <div class="delivery-options">
+                            <label class="radio-option">
+                                <input type="radio" name="delivery_method" value="email" checked>
+                                <span class="radio-custom"></span>
+                                <i class="fas fa-envelope"></i> Email
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="delivery_method" value="sms">
+                                <span class="radio-custom"></span>
+                                <i class="fas fa-sms"></i> SMS
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- CAPTCHA Section -->
+                    {% if captcha_required %}
+                    <div class="captcha-section">
+                        <h3><i class="fas fa-robot"></i> Security Verification</h3>
+                        <p class="captcha-info">Please complete the security verification below:</p>
+                        
+                        <div class="captcha-tabs">
+                            <button type="button" class="captcha-tab active" onclick="switchCaptcha('custom')">
+                                <i class="fas fa-image"></i> Image CAPTCHA
+                            </button>
+                            {% if recaptcha_config and recaptcha_config.v2_enabled %}
+                            <button type="button" class="captcha-tab" onclick="switchCaptcha('recaptcha_v2')">
+                                <i class="fab fa-google"></i> reCAPTCHA v2
+                            </button>
+                            {% endif %}
+                            {% if recaptcha_config and recaptcha_config.v3_enabled %}
+                            <button type="button" class="captcha-tab" onclick="switchCaptcha('recaptcha_v3')">
+                                <i class="fab fa-google"></i> reCAPTCHA v3
+                            </button>
+                            {% endif %}
+                        </div>
+
+                        <!-- Custom CAPTCHA -->
+                        <div id="customCaptcha" class="captcha-content active">
+                            <div class="captcha-display">
+                                {% if captcha_data %}
+                                <img src="{{ captcha_data.image }}" alt="CAPTCHA Image" class="captcha-image" id="captchaImage">
+                                {% if captcha_data.audio %}
+                                <audio controls class="captcha-audio" id="captchaAudio">
+                                    <source src="{{ captcha_data.audio }}" type="audio/mp3">
+                                    Your browser does not support audio playback.
+                                </audio>
+                                {% endif %}
+                                {% endif %}
+                            </div>
+                            <div class="captcha-controls">
+                                <button type="button" class="btn-secondary" onclick="refreshCaptcha()">
+                                    <i class="fas fa-sync-alt"></i> Refresh
+                                </button>
+                                <button type="button" class="btn-secondary" onclick="playCaptchaAudio()">
+                                    <i class="fas fa-volume-up"></i> Audio
+                                </button>
+                            </div>
+                            <div class="form-group">
+                                <label for="captcha_response">Enter the characters you see:</label>
+                                <input type="text" id="captcha_response" name="captcha_response" 
+                                       placeholder="Enter CAPTCHA text" autocomplete="off">
+                            </div>
+                        </div>
+
+                        <!-- reCAPTCHA v2 -->
+                        {% if recaptcha_config and recaptcha_config.v2_enabled %}
+                        <div id="recaptchaV2" class="captcha-content">
+                            <div class="g-recaptcha" data-sitekey="{{ recaptcha_config.v2_site_key }}"></div>
+                        </div>
+                        {% endif %}
+
+                        <!-- reCAPTCHA v3 -->
+                        {% if recaptcha_config and recaptcha_config.v3_enabled %}
+                        <div id="recaptchaV3" class="captcha-content">
+                            <div class="recaptcha-v3-info">
+                                <i class="fas fa-shield-alt"></i>
+                                <p>This site is protected by reCAPTCHA v3. Your interaction will be analyzed automatically.</p>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <input type="hidden" name="captcha_type" id="captchaType" value="custom">
+                        <input type="hidden" name="recaptcha_v3_token" id="recaptchaV3Token">
+                    </div>
+                    {% endif %}
+
+                    <button type="submit" class="btn-primary" id="loginButton">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <div class="demo-credentials">
+                        <h4><i class="fas fa-info-circle"></i> Demo Credentials</h4>
+                        <div class="credentials-grid">
+                            <div class="credential-item">
+                                <strong>Admin:</strong>
+                                <span>admin@example.com / Admin@123</span>
+                            </div>
+                            <div class="credential-item">
+                                <strong>User:</strong>
+                                <span>suman@iitp.ac.in / Suman@123</span>
+                            </div>
+                            <div class="credential-item">
+                                <strong>Demo:</strong>
+                                <span>demo@example.com / Demo@123</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% elif state == 'otp' %}
+        <!-- OTP Verification Form -->
+        <div class="auth-container">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <h2><i class="fas fa-mobile-alt"></i> Two-Factor Authentication</h2>
+                    <p>Enter the verification code sent to your {{ delivery_method }}</p>
+                    {% if delivery_method == 'email' %}
+                    <div class="contact-info">
+                        <i class="fas fa-envelope"></i> {{ contact_info }}
+                    </div>
+                    {% else %}
+                    <div class="contact-info">
+                        <i class="fas fa-sms"></i> {{ contact_info }}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <form method="POST" action="{{ url_for('verify_otp') }}" class="auth-form">
+                    <div class="form-group">
+                        <label for="otp"><i class="fas fa-key"></i> Verification Code</label>
+                        <input type="text" id="otp" name="otp" required 
+                               placeholder="Enter 6-digit code"
+                               maxlength="6" pattern="[0-9]{6}"
+                               autocomplete="one-time-code"
+                               class="otp-input">
+                    </div>
+
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-check"></i> Verify Code
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <div class="resend-section">
+                        <p>Didn't receive the code?</p>
+                        <button type="button" class="btn-link" onclick="resendOTP()" id="resendButton">
+                            <i class="fas fa-redo"></i> Resend Code
+                        </button>
+                        <div id="resendTimer" class="resend-timer"></div>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="btn-link">
+                        <i class="fas fa-arrow-left"></i> Back to Login
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        {% elif state == 'success' %}
+        <!-- Dashboard -->
+        <div class="dashboard-container">
+            <div class="dashboard-header">
+                <div class="user-info">
+                    <div class="user-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="user-details">
+                        <h2>Welcome back!</h2>
+                        <p class="user-email">{{ email }}</p>
+                        {% if user and user.role == 'admin' %}
+                        <span class="user-role admin">
+                            <i class="fas fa-crown"></i> Administrator
+                        </span>
+                        {% else %}
+                        <span class="user-role user">
+                            <i class="fas fa-user"></i> User
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="dashboard-actions">
+                    {% if user and user.role == 'admin' %}
+                    <a href="{{ url_for('admin_dashboard') }}" class="btn-secondary">
+                        <i class="fas fa-cog"></i> Admin Panel
+                    </a>
+                    {% endif %}
+                    <a href="{{ url_for('logout') }}" class="btn-primary">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </a>
+                </div>
+            </div>
+
+            <div class="dashboard-content">
+                <div class="dashboard-grid">
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-shield-check"></i> Security Status</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="status-item">
+                                <i class="fas fa-check-circle text-success"></i>
+                                <span>Two-Factor Authentication Enabled</span>
+                            </div>
+                            <div class="status-item">
+                                <i class="fas fa-check-circle text-success"></i>
+                                <span>Account Verified</span>
+                            </div>
+                            <div class="status-item">
+                                <i class="fas fa-check-circle text-success"></i>
+                                <span>Secure Connection</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-clock"></i> Recent Activity</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="activity-item">
+                                <i class="fas fa-sign-in-alt"></i>
+                                <div class="activity-details">
+                                    <span class="activity-action">Successful Login</span>
+                                    <span class="activity-time">Just now</span>
+                                </div>
+                            </div>
+                            <div class="activity-item">
+                                <i class="fas fa-mobile-alt"></i>
+                                <div class="activity-details">
+                                    <span class="activity-action">2FA Verification</span>
+                                    <span class="activity-time">Just now</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-info-circle"></i> Account Information</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="info-item">
+                                <span class="info-label">Email:</span>
+                                <span class="info-value">{{ email }}</span>
+                            </div>
+                            {% if user and user.phone %}
+                            <div class="info-item">
+                                <span class="info-label">Phone:</span>
+                                <span class="info-value">{{ user.phone }}</span>
+                            </div>
+                            {% endif %}
+                            <div class="info-item">
+                                <span class="info-label">Role:</span>
+                                <span class="info-value">{{ user.role.title() if user else 'User' }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if user and user.role == 'admin' %}
+                    <div class="dashboard-card admin-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-tools"></i> Admin Quick Actions</h3>
+                        </div>
+                        <div class="card-content">
+                            <a href="{{ url_for('admin_dashboard') }}" class="quick-action">
+                                <i class="fas fa-tachometer-alt"></i>
+                                <span>View Dashboard</span>
+                            </a>
+                            <a href="#" class="quick-action">
+                                <i class="fas fa-users"></i>
+                                <span>Manage Users</span>
+                            </a>
+                            <a href="#" class="quick-action">
+                                <i class="fas fa-chart-bar"></i>
+                                <span>View Reports</span>
+                            </a>
+                            <a href="#" class="quick-action">
+                                <i class="fas fa-cog"></i>
+                                <span>System Settings</span>
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Password toggle functionality
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('passwordToggleIcon');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
+        }
+
+        // CAPTCHA functionality
+        function switchCaptcha(type) {
+            // Update active tab
+            document.querySelectorAll('.captcha-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update active content
+            document.querySelectorAll('.captcha-content').forEach(content => content.classList.remove('active'));
+            
+            if (type === 'custom') {
+                document.getElementById('customCaptcha').classList.add('active');
+            } else if (type === 'recaptcha_v2') {
+                document.getElementById('recaptchaV2').classList.add('active');
+            } else if (type === 'recaptcha_v3') {
+                document.getElementById('recaptchaV3').classList.add('active');
+            }
+            
+            // Update hidden input
+            document.getElementById('captchaType').value = type;
+        }
+
+        function refreshCaptcha() {
+            fetch('/captcha/generate?type=text')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('captchaImage').src = data.captcha.image;
+                        if (data.captcha.audio) {
+                            document.getElementById('captchaAudio').src = data.captcha.audio;
+                        }
+                        document.getElementById('captcha_response').value = '';
+                    }
+                })
+                .catch(error => console.error('Error refreshing CAPTCHA:', error));
+        }
+
+        function playCaptchaAudio() {
+            const audio = document.getElementById('captchaAudio');
+            if (audio) {
+                audio.play();
+            }
+        }
+
+        // OTP resend functionality
+        let resendTimer = 60;
+        let resendInterval;
+
+        function resendOTP() {
+            const button = document.getElementById('resendButton');
+            const timer = document.getElementById('resendTimer');
+            
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            
+            fetch('/resend-otp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showFlashMessage('success', data.message);
+                    startResendTimer();
+                } else {
+                    showFlashMessage('error', data.message);
+                    button.disabled = false;
+                    button.innerHTML = '<i class="fas fa-redo"></i> Resend Code';
+                }
+            })
+            .catch(error => {
+                showFlashMessage('error', 'Failed to resend code. Please try again.');
+                button.disabled = false;
+                button.innerHTML = '<i class="fas fa-redo"></i> Resend Code';
+            });
+        }
+
+        function startResendTimer() {
+            const button = document.getElementById('resendButton');
+            const timer = document.getElementById('resendTimer');
+            
+            resendTimer = 60;
+            timer.style.display = 'block';
+            
+            resendInterval = setInterval(() => {
+                timer.textContent = `Resend available in ${resendTimer}s`;
+                resendTimer--;
+                
+                if (resendTimer < 0) {
+                    clearInterval(resendInterval);
+                    button.disabled = false;
+                    button.innerHTML = '<i class="fas fa-redo"></i> Resend Code';
+                    timer.style.display = 'none';
+                }
+            }, 1000);
+        }
+
+        // Flash message functionality
+        function showFlashMessage(type, message) {
+            const flashContainer = document.querySelector('.flash-messages') || createFlashContainer();
+            const flashMessage = document.createElement('div');
+            flashMessage.className = `flash-message flash-${type}`;
+            
+            const icon = type === 'error' ? 'exclamation-triangle' : 
+                        type === 'success' ? 'check-circle' : 
+                        type === 'warning' ? 'exclamation-circle' : 'info-circle';
+            
+            flashMessage.innerHTML = `
+                <i class="fas fa-${icon}"></i>
+                ${message}
+                <button class="close-flash" onclick="this.parentElement.remove()">&times;</button>
+            `;
+            
+            flashContainer.appendChild(flashMessage);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (flashMessage.parentElement) {
+                    flashMessage.remove();
+                }
+            }, 5000);
+        }
+
+        function createFlashContainer() {
+            const container = document.createElement('div');
+            container.className = 'flash-messages';
+            document.querySelector('.container').insertBefore(container, document.querySelector('.container').firstChild.nextSibling);
+            return container;
+        }
+
+        // reCAPTCHA v3 functionality
+        {% if recaptcha_config and recaptcha_config.v3_enabled %}
+        function executeRecaptchaV3() {
+            grecaptcha.ready(function() {
+                grecaptcha.execute('{{ recaptcha_config.v3_site_key }}', {action: 'login'}).then(function(token) {
+                    document.getElementById('recaptchaV3Token').value = token;
+                });
+            });
+        }
+
+        // Execute reCAPTCHA v3 when form is submitted
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            const captchaType = document.getElementById('captchaType').value;
+            if (captchaType === 'recaptcha_v3') {
+                e.preventDefault();
+                executeRecaptchaV3();
+                setTimeout(() => {
+                    this.submit();
+                }, 500);
+            }
+        });
+        {% endif %}
+
+        // Auto-focus on OTP input
+        {% if state == 'otp' %}
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('otp').focus();
+        });
+        {% endif %}
+
+        // Format OTP input
+        {% if state == 'otp' %}
+        document.getElementById('otp').addEventListener('input', function(e) {
+            // Only allow numbers
+            this.value = this.value.replace(/[^0-9]/g, '');
+            
+            // Auto-submit when 6 digits are entered
+            if (this.value.length === 6) {
+                setTimeout(() => {
+                    this.form.submit();
+                }, 500);
+            }
+        });
+        {% endif %}
+    </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "name": "flask-2fa-app",
+  "version": "1.0.0",
+  "description": "Flask 2FA Authentication Application with CAPTCHA and Admin Panel",
+  "main": "app.py",
+  "scripts": {
+    "start": "python app.py",
+    "dev": "python app.py",
+    "init-db": "python -c 'from app import init_db; init_db()'",
+    "reset-db": "python -c 'from app import db; db.drop_all(); from app import init_db; init_db()'"
+  },
+  "keywords": ["flask", "2fa", "authentication", "captcha", "security", "python"],
+  "author": "Flask 2FA Demo",
+  "license": "MIT",
+  "dependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/flask-2fa-app.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/flask-2fa-app/issues"
+  },
+  "homepage": "https://github.com/your-username/flask-2fa-app#readme"
+}
