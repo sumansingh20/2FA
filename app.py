@@ -982,6 +982,29 @@ def css_test():
     """Test route to verify CSS is loading"""
     return render_template('css_test.html')
 
+@app.route('/debug-static')
+def debug_static():
+    """Debug route to check static files"""
+    import os
+    static_folder = app.static_folder
+    static_files = []
+    
+    if os.path.exists(static_folder):
+        for file in os.listdir(static_folder):
+            static_files.append(file)
+    
+    return f"""
+    <h1>Static Files Debug</h1>
+    <p><strong>Static folder:</strong> {static_folder}</p>
+    <p><strong>Static URL path:</strong> {app.static_url_path}</p>
+    <p><strong>Files found:</strong> {', '.join(static_files) if static_files else 'None'}</p>
+    <hr>
+    <h2>Test Links:</h2>
+    <p><a href="/static/style.css" target="_blank">Direct CSS Link</a></p>
+    <p><a href="/static/admin.css" target="_blank">Admin CSS Link</a></p>
+    <p><a href="/css-test">CSS Test Page</a></p>
+    """
+
 @app.route('/static/<path:filename>')
 def static_files(filename):
     """Serve static files with proper headers"""
@@ -1023,109 +1046,17 @@ def index():
         
         return render_template('index.html', state='success', email=session['user_email'], user=user)
     elif 'user_email' in session and 'otp' in session:
-        # Show OTP verification form
+        # Show OTP verification form using template
         delivery_method = session.get('delivery_method', 'email')
         contact_info = session['user_email'] if delivery_method == 'email' else session.get('user_phone', '')
         
-        # Return simple OTP verification HTML for now
-        return f'''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>OTP Verification</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }}
-                .container {{ max-width: 400px; margin: 50px auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-                h1 {{ color: #333; text-align: center; }}
-                .form-group {{ margin: 15px 0; }}
-                label {{ display: block; margin-bottom: 5px; color: #555; }}
-                input {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; }}
-                button {{ width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; }}
-                button:hover {{ background: #0056b3; }}
-                .info {{ background: #e7f3ff; padding: 10px; border-radius: 5px; margin: 15px 0; color: #0066cc; }}
-                .otp-display {{ background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #28a745; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🔐 OTP Verification</h1>
-                <div class="info">
-                    Check the terminal console for your OTP code!
-                </div>
-                <div class="otp-display">
-                    <strong>Latest OTP:</strong> Check terminal output<br>
-                    <strong>Email:</strong> {session['user_email']}<br>
-                    <strong>Method:</strong> {delivery_method}
-                </div>
-                <form method="POST" action="/verify">
-                    <div class="form-group">
-                        <label for="otp">Enter 6-digit OTP:</label>
-                        <input type="text" id="otp" name="otp" required maxlength="6" pattern="[0-9]{{6}}" placeholder="000000">
-                    </div>
-                    <button type="submit">Verify OTP</button>
-                </form>
-                <hr style="margin: 20px 0;">
-                <p><a href="/logout">← Back to Login</a></p>
-            </div>
-        </body>
-        </html>
-        '''
+        return render_template('verify_2fa.html', 
+                             delivery_method=delivery_method, 
+                             contact_info=contact_info,
+                             email=session['user_email'])
     else:
-        # Show login form
-        return '''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Flask 2FA Login</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }}
-                .container {{ max-width: 400px; margin: 50px auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 20px rgba(0,0,0,0.2); }}
-                h1 {{ color: #333; text-align: center; margin-bottom: 20px; }}
-                .form-group {{ margin: 15px 0; }}
-                label {{ display: block; margin-bottom: 5px; color: #555; }}
-                input {{ width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; }}
-                button {{ width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; }}
-                button:hover {{ background: #0056b3; }}
-                .radio-group {{ display: flex; gap: 15px; }}
-                .radio-option {{ display: flex; align-items: center; gap: 5px; }}
-                .demo-creds {{ background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 20px; border-left: 4px solid #17a2b8; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🔐 Flask 2FA Login</h1>
-                <form method="POST" action="/login">
-                    <div class="form-group">
-                        <label for="email">Email:</label>
-                        <input type="email" id="email" name="email" required value="admin@example.com">
-                    </div>
-                    <div class="form-group">
-                        <label for="password">Password:</label>
-                        <input type="password" id="password" name="password" required value="Admin@123">
-                    </div>
-                    <div class="form-group">
-                        <label>Delivery Method:</label>
-                        <div class="radio-group">
-                            <label class="radio-option">
-                                <input type="radio" name="delivery_method" value="email" checked> Email
-                            </label>
-                            <label class="radio-option">
-                                <input type="radio" name="delivery_method" value="sms"> SMS
-                            </label>
-                        </div>
-                    </div>
-                    <button type="submit">Login</button>
-                </form>
-                <div class="demo-creds">
-                    <strong>Demo Accounts:</strong><br>
-                    <strong>Admin:</strong> admin@example.com / Admin@123<br>
-                    <strong>User:</strong> suman@iitp.ac.in / Suman@123<br>
-                    <strong>Demo:</strong> demo@example.com / Demo@123
-                </div>
-            </div>
-        </body>
-        </html>
-        '''
+        # Show login form using template
+        return render_template('index.html', state='login')
 
 @app.route('/login', methods=['POST'])
 def login():
