@@ -1,5 +1,4 @@
 # 🔐 Flask 2FA Authentication Tool with Database
-
 A complete Two-Factor Authentication (2FA) web application built with Flask, featuring a beautiful single-page interface, comprehensive admin panel, and persistent database storage using SQLAlchemy.
 
 ## ✨ Features
