@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 Database initialization script for Flask 2FA application.
