@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Authentication Logs - 2FA Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='admin.css') }}" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('admin_dashboard') }}">
+                <i class="fas fa-shield-alt me-2"></i>2FA Admin Panel
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
+                            <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_users') }}">
+                            <i class="fas fa-users me-1"></i>Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('admin_logs') }}">
+                            <i class="fas fa-list-alt me-1"></i>Auth Logs
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-1"></i>{{ session.user_email }}
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('index') }}">
+                                <i class="fas fa-home me-2"></i>Main App
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">
+                                <i class="fas fa-sign-out-alt me-2"></i>Logout
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Page Header -->
+        <div class="d-sm-flex align-items-center justify-content-between mb-4">
+            <h1 class="h3 mb-0 text-gray-800">
+                <i class="fas fa-list-alt me-2"></i>Authentication Logs
+            </h1>
+        </div>
+
+        <!-- Filters -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-filter me-2"></i>Filters
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-4">
+                        <label for="event_type" class="form-label">Event Type</label>
+                        <select class="form-select" id="event_type" name="event_type">
+                            <option value="">All Events</option>
+                            <option value="login_attempt" {{ 'selected' if event_filter == 'login_attempt' }}>Login Attempt</option>
+                            <option value="login_success" {{ 'selected' if event_filter == 'login_success' }}>Login Success</option>
+                            <option value="login_failed" {{ 'selected' if event_filter == 'login_failed' }}>Login Failed</option>
+                            <option value="otp_sent" {{ 'selected' if event_filter == 'otp_sent' }}>OTP Sent</option>
+                            <option value="otp_verified" {{ 'selected' if event_filter == 'otp_verified' }}>OTP Verified</option>
+                            <option value="otp_failed" {{ 'selected' if event_filter == 'otp_failed' }}>OTP Failed</option>
+                            <option value="logout" {{ 'selected' if event_filter == 'logout' }}>Logout</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="email" class="form-label">User Email</label>
+                        <input type="text" class="form-control" id="email" name="email" 
+                               value="{{ email_filter }}" placeholder="Filter by email...">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-1"></i>Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Logs Table -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-table me-2"></i>Authentication Events ({{ pagination.total }} total)
+                </h6>
+                <button class="btn btn-sm btn-outline-primary" onclick="location.reload()">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Timestamp</th>
+                                <th>User</th>
+                                <th>Event Type</th>
+                                <th>Details</th>
+                                <th>Delivery Method</th>
+                                <th>IP Address</th>
+                                <th>User Agent</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-secondary">#{{ log.id }}</span>
+                                </td>
+                                <td>
+                                    <div class="small">
+                                        <div>{{ log.timestamp.split('T')[0] }}</div>
+                                        <div class="text-muted">{{ log.timestamp.split('T')[1].split('.')[0] }}</div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-user-circle me-2 text-gray-400"></i>
+                                        <div>
+                                            <div class="font-weight-bold small">{{ log.email }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 
+                                        'success' if log.event_type == 'login_success' or log.event_type == 'otp_verified' 
+                                        else 'danger' if 'failed' in log.event_type or log.event_type == 'otp_failed'
+                                        else 'warning' if log.event_type == 'login_attempt'
+                                        else 'info' if log.event_type == 'otp_sent'
+                                        else 'secondary'
+                                    }}">
+                                        {{ log.event_type.replace('_', ' ').title() }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="small" title="{{ log.details }}">
+                                        {{ log.details[:50] }}{{ '...' if log.details|length > 50 else '' }}
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if log.delivery_method != 'N/A' %}
+                                        <span class="badge bg-{{ 'primary' if log.delivery_method == 'email' else 'success' }}">
+                                            <i class="fas fa-{{ 'envelope' if log.delivery_method == 'email' else 'sms' }} me-1"></i>
+                                            {{ log.delivery_method.title() }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="font-monospace small">{{ log.ip_address }}</span>
+                                </td>
+                                <td>
+                                    <div class="small" title="{{ log.user_agent }}">
+                                        {{ log.user_agent[:30] }}{{ '...' if log.user_agent|length > 30 else '' }}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if pagination.pages > 1 %}
+                <nav aria-label="Logs pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if pagination.has_prev %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin_logs', page=pagination.page-1, event_type=event_filter, email=email_filter) }}">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+
+                        {% for page_num in range(1, pagination.pages + 1) %}
+                            {% if page_num == pagination.page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                            {% elif page_num <= 3 or page_num > pagination.pages - 3 or (page_num >= pagination.page - 1 and page_num <= pagination.page + 1) %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin_logs', page=page_num, event_type=event_filter, email=email_filter) }}">
+                                        {{ page_num }}
+                                    </a>
+                                </li>
+                            {% elif page_num == 4 or page_num == pagination.pages - 3 %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if pagination.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin_logs', page=pagination.page+1, event_type=event_filter, email=email_filter) }}">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
